@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Abastecimento de Linhas — Petiko</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+<style>
+  :root {
+    --orange: #FF6B35;
+    --orange-dark: #E85A28;
+    --dark: #1A252F;
+    --dark2: #2C3E50;
+    --gray-bg: #F4F5F7;
+    --gray-border: #E1E4E8;
+    --gray-text: #6B7280;
+    --green: #27AE60;
+    --red: #E74C3C;
+    --white: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--gray-bg);
+    color: var(--dark2);
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  .topbar {
+    background: var(--dark);
+    color: white;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .topbar .logo-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--orange);
+    flex-shrink: 0;
+  }
+  .topbar h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .topbar .sub {
+    font-size: 11px;
+    color: #9AA5B1;
+    margin-left: auto;
+  }
+
+  .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+
+  .step-indicator {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    padding: 0 4px;
+  }
+  .step-indicator .bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--gray-border);
+    transition: background 0.3s;
+  }
+  .step-indicator .bar.active { background: var(--orange); }
+  .step-indicator .bar.done { background: var(--green); }
+
+  .card {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid var(--gray-border);
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+
+  .card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-text);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-label .step-num {
+    background: var(--orange);
+    color: white;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* Camera capture box */
+  .capture-box {
+    border: 2px dashed #C9CED6;
+    border-radius: 12px;
+    padding: 28px 16px;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .capture-box.has-photo {
+    border-color: var(--green);
+    border-style: solid;
+    padding: 12px;
+  }
+  .capture-box svg { color: var(--orange); margin-bottom: 8px; }
+  .capture-box p {
+    font-size: 13px;
+    color: var(--gray-text);
+    margin: 0 0 14px;
+  }
+  .preview-img {
+    width: 100%;
+    border-radius: 8px;
+    display: block;
+    max-height: 180px;
+    object-fit: cover;
+  }
+
+  button {
+    font-family: inherit;
+    border: none;
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+    width: 100%;
+  }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-primary { background: var(--orange); color: white; }
+  .btn-secondary { background: var(--gray-bg); color: var(--dark2); border: 1px solid var(--gray-border); }
+  .btn-success { background: var(--green); color: white; }
+  .btn-ghost { background: transparent; color: var(--gray-text); font-weight: 500; font-size: 13px; padding: 8px; }
+
+  input[type="file"] { display: none; }
+
+  .ocr-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--gray-text);
+    padding: 10px 0;
+  }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--gray-border);
+    border-top-color: var(--orange);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .ocr-result {
+    background: #F0FAF4;
+    border: 1px solid #C7E8D4;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 12px;
+  }
+  .ocr-result .ok-line {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--green);
+    margin-bottom: 8px;
+  }
+  .ocr-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+  .ocr-field .field-label { color: var(--gray-text); }
+  .ocr-field input {
+    border: none;
+    background: transparent;
+    text-align: right;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--dark2);
+    width: 55%;
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .ocr-field input:focus {
+    background: white;
+    outline: 1.5px solid var(--orange);
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-text);
+    margin-bottom: 6px;
+  }
+  select, .text-input {
+    width: 100%;
+    padding: 11px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--gray-border);
+    font-size: 15px;
+    font-family: inherit;
+    background: white;
+    color: var(--dark2);
+  }
+  select:focus, .text-input:focus { outline: 1.5px solid var(--orange); }
+
+  .line-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .line-pill {
+    border: 1.5px solid var(--gray-border);
+    border-radius: 8px;
+    padding: 10px 0;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-text);
+    cursor: pointer;
+    background: white;
+  }
+  .line-pill.selected {
+    background: var(--orange);
+    border-color: var(--orange);
+    color: white;
+  }
+
+  .op-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .op-pill {
+    border: 1.5px solid var(--gray-border);
+    border-radius: 8px;
+    padding: 10px 4px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--dark2);
+    cursor: pointer;
+    background: white;
+  }
+  .op-pill.selected {
+    background: var(--dark);
+    border-color: var(--dark);
+    color: white;
+  }
+
+  .time-row { display: flex; gap: 10px; }
+  .time-box { flex: 1; }
+  .time-display {
+    width: 100%;
+    padding: 13px 10px;
+    border-radius: 10px;
+    border: 1.5px solid var(--gray-border);
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    background: white;
+    color: var(--dark2);
+    cursor: pointer;
+  }
+  .time-display.set { border-color: var(--green); color: var(--green); }
+  .time-display.empty { color: #C9CED6; }
+
+  .duration-banner {
+    background: var(--dark);
+    color: white;
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .duration-banner .dur-value { font-size: 20px; font-weight: 700; color: var(--orange); }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--dark);
+    color: white;
+    padding: 14px 22px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--red); }
+  .toast.success { background: var(--green); }
+
+  .success-screen {
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .success-screen .check-circle {
+    width: 70px; height: 70px;
+    border-radius: 50%;
+    background: #E8F8EE;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 18px;
+  }
+  .success-screen h2 { font-size: 18px; margin: 0 0 6px; }
+  .success-screen p { font-size: 13px; color: var(--gray-text); margin: 0 0 24px; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo-dot"></div>
+  <h1>Abastecimento de Linhas</h1>
+  <span class="sub">Petiko</span>
+</div>
+
+<div class="container">
+
+  <div class="step-indicator" id="stepIndicator">
+    <div class="bar active" data-step="1"></div>
+    <div class="bar" data-step="2"></div>
+    <div class="bar" data-step="3"></div>
+  </div>
+
+  <!-- SCREEN: FORM -->
+  <div id="formScreen">
+
+    <!-- STEP 1: PHOTO + OCR -->
+    <div class="card">
+      <div class="card-label"><span class="step-num">1</span> Foto do relatório</div>
+
+      <div class="capture-box" id="captureBox">
+        <svg id="cameraIcon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        <p id="captureHint">Fotografe a lista de separação para ler os dados automaticamente</p>
+        <img id="previewImg" class="preview-img hidden">
+        <input type="file" id="fileInput" accept="image/*" capture="environment">
+        <button class="btn-primary" id="btnOpenCamera" type="button">Abrir câmera</button>
+      </div>
+
+      <div id="ocrStatus" class="hidden">
+        <div class="ocr-status">
+          <div class="spinner"></div>
+          <span id="ocrStatusText">Lendo o documento...</span>
+        </div>
+      </div>
+
+      <div id="ocrResult" class="ocr-result hidden">
+        <div class="ok-line">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Dados lidos — confira e corrija se precisar
+        </div>
+        <div class="ocr-field">
+          <span class="field-label">Tipo</span>
+          <input type="text" id="ocrTipo" value="">
+        </div>
+        <div class="ocr-field">
+          <span class="field-label">Código</span>
+          <input type="text" id="ocrCodigo" value="">
+        </div>
+        <div class="ocr-field">
+          <span class="field-label">Nº pedidos</span>
+          <input type="text" id="ocrPedidos" value="">
+        </div>
+      </div>
+
+      <button class="btn-ghost" id="btnSkipPhoto" type="button" style="margin-top:8px;">Preencher manualmente, sem foto</button>
+    </div>
+
+    <!-- STEP 2: LINE + OPERATOR -->
+    <div class="card">
+      <div class="card-label"><span class="step-num">2</span> Linha e operador</div>
+
+      <div class="form-group">
+        <label>Linha de montagem</label>
+        <div class="line-grid" id="lineGrid">
+          <div class="line-pill" data-line="A">A</div>
+          <div class="line-pill" data-line="B">B</div>
+          <div class="line-pill" data-line="C">C</div>
+          <div class="line-pill" data-line="D">D</div>
+          <div class="line-pill" data-line="E">E</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Operador</label>
+        <div class="op-grid" id="opGrid">
+          <div class="op-pill" data-op="Julio">Julio</div>
+          <div class="op-pill" data-op="Alan">Alan</div>
+          <div class="op-pill" data-op="Outro">Outro</div>
+        </div>
+        <input type="text" class="text-input hidden" id="opOtherInput" placeholder="Digite o nome do operador">
+      </div>
+    </div>
+
+    <!-- STEP 3: TIME -->
+    <div class="card">
+      <div class="card-label"><span class="step-num">3</span> Tempo de abastecimento</div>
+
+      <div class="time-row">
+        <div class="time-box">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-text);margin-bottom:6px;">Início</label>
+          <div class="time-display empty" id="btnStart">--:--</div>
+        </div>
+        <div class="time-box">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--gray-text);margin-bottom:6px;">Fim</label>
+          <div class="time-display empty" id="btnEnd">--:--</div>
+        </div>
+      </div>
+
+      <div class="duration-banner hidden" id="durationBanner">
+        <span>Duração total</span>
+        <span class="dur-value" id="durationValue">—</span>
+      </div>
+    </div>
+
+    <button class="btn-success" id="btnSubmit" disabled>Enviar registro</button>
+    <div style="height:20px;"></div>
+  </div>
+
+  <!-- SCREEN: SUCCESS -->
+  <div id="successScreen" class="hidden">
+    <div class="success-screen">
+      <div class="check-circle">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#27AE60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>Registro enviado!</h2>
+      <p id="successDetail">Linha A · Julio · 42 min</p>
+      <button class="btn-primary" id="btnNewRecord">Novo registro</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIG — cole aqui a URL do seu Google Apps Script Web App
+// ============================================================
+const SCRIPT_URL = "COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT";
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  tipo: "", codigo: "", pedidos: "",
+  linha: null, operador: null, operadorOutro: "",
+  inicio: null, fim: null,
+  photoTaken: false
+};
+
+const fileInput = document.getElementById('fileInput');
+const btnOpenCamera = document.getElementById('btnOpenCamera');
+const captureBox = document.getElementById('captureBox');
+const previewImg = document.getElementById('previewImg');
+const cameraIcon = document.getElementById('cameraIcon');
+const captureHint = document.getElementById('captureHint');
+const ocrStatus = document.getElementById('ocrStatus');
+const ocrStatusText = document.getElementById('ocrStatusText');
+const ocrResult = document.getElementById('ocrResult');
+const btnSkipPhoto = document.getElementById('btnSkipPhoto');
+
+btnOpenCamera.addEventListener('click', () => fileInput.click());
+btnSkipPhoto.addEventListener('click', () => {
+  state.photoTaken = true;
+  ocrResult.classList.remove('hidden');
+  captureBox.classList.add('has-photo');
+  captureHint.textContent = "Preenchimento manual";
+  cameraIcon.classList.add('hidden');
+  btnOpenCamera.classList.add('hidden');
+  btnSkipPhoto.classList.add('hidden');
+  checkFormComplete();
+});
+
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const url = URL.createObjectURL(file);
+  previewImg.src = url;
+  previewImg.classList.remove('hidden');
+  cameraIcon.classList.add('hidden');
+  captureHint.classList.add('hidden');
+  btnOpenCamera.classList.add('hidden');
+  captureBox.classList.add('has-photo');
+
+  ocrStatus.classList.remove('hidden');
+  ocrStatusText.textContent = "Lendo o documento...";
+
+  try {
+    const result = await Tesseract.recognize(file, 'por', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          ocrStatusText.textContent = `Lendo o documento... ${Math.round(m.progress * 100)}%`;
+        }
+      }
+    });
+    const text = result.data.text;
+    parseOcrText(text);
+  } catch (err) {
+    showToast('Não foi possível ler a foto. Preencha manualmente.', 'error');
+    parseOcrText("");
+  }
+
+  ocrStatus.classList.add('hidden');
+  ocrResult.classList.remove('hidden');
+  btnSkipPhoto.classList.add('hidden');
+  state.photoTaken = true;
+  checkFormComplete();
+});
+
+function parseOcrText(text) {
+  // Tenta extrair Tipo, Código e Nº de pedidos do texto OCR da lista de separação
+  let tipo = "";
+  let codigo = "";
+  let pedidos = "";
+
+  const tipoMatch = text.match(/Tipo:?\s*([A-ZÀ-Ú]+)/i);
+  if (tipoMatch) tipo = tipoMatch[1].toUpperCase().trim();
+
+  const codMatch = text.match(/C[oó]d:?\s*([0-9A-Za-z\-]+)/i);
+  if (codMatch) codigo = codMatch[1].trim();
+
+  const pedMatch = text.match(/(\d+)\s*pedidos/i);
+  if (pedMatch) pedidos = pedMatch[1].trim();
+
+  document.getElementById('ocrTipo').value = tipo || "";
+  document.getElementById('ocrCodigo').value = codigo || "";
+  document.getElementById('ocrPedidos').value = pedidos || "";
+
+  state.tipo = tipo;
+  state.codigo = codigo;
+  state.pedidos = pedidos;
+}
+
+['ocrTipo','ocrCodigo','ocrPedidos'].forEach(id => {
+  document.getElementById(id).addEventListener('input', (e) => {
+    const map = { ocrTipo: 'tipo', ocrCodigo: 'codigo', ocrPedidos: 'pedidos' };
+    state[map[id]] = e.target.value;
+  });
+});
+
+// Line selection
+document.querySelectorAll('.line-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.line-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    state.linha = pill.dataset.line;
+    checkFormComplete();
+  });
+});
+
+// Operator selection
+const opOtherInput = document.getElementById('opOtherInput');
+document.querySelectorAll('.op-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.op-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    state.operador = pill.dataset.op;
+    if (pill.dataset.op === 'Outro') {
+      opOtherInput.classList.remove('hidden');
+      opOtherInput.focus();
+    } else {
+      opOtherInput.classList.add('hidden');
+    }
+    checkFormComplete();
+  });
+});
+opOtherInput.addEventListener('input', (e) => {
+  state.operadorOutro = e.target.value;
+  checkFormComplete();
+});
+
+// Time
+const btnStart = document.getElementById('btnStart');
+const btnEnd = document.getElementById('btnEnd');
+const durationBanner = document.getElementById('durationBanner');
+const durationValue = document.getElementById('durationValue');
+
+function formatTime(d) {
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+btnStart.addEventListener('click', () => {
+  state.inicio = new Date();
+  btnStart.textContent = formatTime(state.inicio);
+  btnStart.classList.remove('empty');
+  btnStart.classList.add('set');
+  updateDuration();
+  checkFormComplete();
+});
+
+btnEnd.addEventListener('click', () => {
+  if (!state.inicio) {
+    showToast('Marque o horário de início primeiro', 'error');
+    return;
+  }
+  state.fim = new Date();
+  btnEnd.textContent = formatTime(state.fim);
+  btnEnd.classList.remove('empty');
+  btnEnd.classList.add('set');
+  updateDuration();
+  checkFormComplete();
+});
+
+function updateDuration() {
+  if (state.inicio && state.fim) {
+    const diffMs = state.fim - state.inicio;
+    const mins = Math.max(0, Math.round(diffMs / 60000));
+    durationValue.textContent = mins + ' min';
+    durationBanner.classList.remove('hidden');
+  }
+}
+
+function checkFormComplete() {
+  const opOk = state.operador && (state.operador !== 'Outro' || state.operadorOutro.trim().length > 0);
+  const complete = state.photoTaken && state.linha && opOk && state.inicio && state.fim;
+  document.getElementById('btnSubmit').disabled = !complete;
+}
+
+// Submit
+document.getElementById('btnSubmit').addEventListener('click', async () => {
+  const btn = document.getElementById('btnSubmit');
+  btn.disabled = true;
+  btn.textContent = "Enviando...";
+
+  const operadorFinal = state.operador === 'Outro' ? state.operadorOutro.trim() : state.operador;
+  const diffMs = state.fim - state.inicio;
+  const durMin = Math.max(0, Math.round(diffMs / 60000));
+
+  const payload = {
+    tipo: state.tipo,
+    codigo: state.codigo,
+    pedidos: state.pedidos,
+    linha: state.linha,
+    operador: operadorFinal,
+    inicio: state.inicio.toISOString(),
+    fim: state.fim.toISOString(),
+    duracaoMin: durMin
+  };
+
+  try {
+    if (SCRIPT_URL && SCRIPT_URL.indexOf('COLE_AQUI') === -1) {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+    }
+    showSuccess(payload);
+  } catch (err) {
+    showToast('Erro ao enviar. Verifique a conexão.', 'error');
+    btn.disabled = false;
+    btn.textContent = "Enviar registro";
+  }
+});
+
+function showSuccess(payload) {
+  document.getElementById('formScreen').classList.add('hidden');
+  document.getElementById('successScreen').classList.remove('hidden');
+  document.getElementById('successDetail').textContent =
+    `Linha ${payload.linha} · ${payload.operador} · ${payload.duracaoMin} min`;
+}
+
+document.getElementById('btnNewRecord').addEventListener('click', () => {
+  window.location.reload();
+});
+
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => { toast.className = 'toast'; }, 3000);
+}
+</script>
+</body>
+</html>
