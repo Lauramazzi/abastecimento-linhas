@@ -451,7 +451,7 @@
 
       <div class="capture-box" id="captureBox">
         <svg id="cameraIcon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 0 1 2-2h.93a2 2 0 0 0 1.664-.89l.812-1.22A2 2 0 0 1 10.07 4h3.86a2 2 0 0 1 1.664.89l.812 1.22A2 2 0 0 0 18.07 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-        <p id="captureHint">Fotografe a lista de separação para ler os dados automaticamente</p>
+        <p id="captureHint">Fotografe só o cabeçalho da lista (parte de cima com Tipo, Código e Nº de pedidos)</p>
         <img id="previewImg" class="preview-img hidden">
         <input type="file" id="fileInput" accept="image/*" capture="environment">
         <button class="btn-primary" id="btnOpenCamera" type="button">Abrir câmera</button>
@@ -585,7 +585,7 @@
 // ============================================================
 // CONFIG — cole aqui a URL do seu Google Apps Script Web App
 // ============================================================
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxg3wTcXftDZ704a7jBqV9KHOgNdTH6aItLPDtfszsC83fiW0vZLeJTBOLrOuEI4ydxpA/exec";
+const SCRIPT_URL = "COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT";
 
 // ============================================================
 // STATE
@@ -659,25 +659,38 @@ fileInput.addEventListener('change', async (e) => {
 });
 
 function parseOcrText(text) {
-  // Tenta extrair Tipo, Código e Nº de pedidos do texto OCR da lista de separação
   let tipo = "";
   let codigo = "";
   let pedidos = "";
 
-  const tiposConhecidos = ["Programadas", "Diários", "Diarios", "Marketing", "Shop Avulso", "Geral"];
-  const lowerText = text.toLowerCase();
-  for (const t of tiposConhecidos) {
-    if (lowerText.includes(t.toLowerCase())) {
-      tipo = (t === "Diarios") ? "Diários" : t;
-      break;
+  // Tipo: busca "Tipo: GERAL" ou "Tipo: DIÁRIO" etc
+  const tipoMatch = text.match(/Tipo[:\s]+([A-ZÀ-Úa-zà-ú\s]+?)(?:\s*\||\s*\n|\s*Cód)/i);
+  if (tipoMatch) {
+    const raw = tipoMatch[1].trim();
+    const tiposConhecidos = ["Programadas","Diários","Diarios","Marketing","Shop Avulso","Geral","GERAL"];
+    for (const t of tiposConhecidos) {
+      if (raw.toLowerCase().includes(t.toLowerCase())) {
+        tipo = (t === "Diarios" || t === "GERAL") ? 
+               (t === "GERAL" ? "Geral" : "Diários") : t;
+        break;
+      }
     }
+    if (!tipo) tipo = raw.split(/\s/)[0]; // pega a primeira palavra se não reconheceu
   }
 
-  const codMatch = text.match(/C[oó]d:?\s*([0-9A-Za-z\-]+)/i);
-  if (codMatch) codigo = codMatch[1].trim();
-
+  // Nº pedidos: busca "15 pedidos" ou "270 pedidos"
   const pedMatch = text.match(/(\d+)\s*pedidos/i);
   if (pedMatch) pedidos = pedMatch[1].trim();
+
+  // Código: busca "Cód: 2026618-1450-GERAL" ou "Cod: ..."
+  const codMatch = text.match(/C[oó]d[:\s]+([0-9]{7,}-[^\s\n]+)/i);
+  if (codMatch) {
+    codigo = codMatch[1].trim();
+  } else {
+    // fallback: tenta pegar qualquer padrão YYYYMMDD-NNNN-XXXX
+    const codFallback = text.match(/\b(20\d{6}-\d{4}-[A-Z]+)\b/i);
+    if (codFallback) codigo = codFallback[1].trim();
+  }
 
   document.getElementById('ocrTipo').value = tipo || "";
   document.getElementById('ocrCodigo').value = codigo || "";
