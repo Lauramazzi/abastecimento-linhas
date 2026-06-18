@@ -386,7 +386,14 @@
         </div>
         <div class="ocr-field">
           <span class="field-label">Tipo</span>
-          <input type="text" id="ocrTipo" value="">
+          <select id="ocrTipo" style="border:none;background:transparent;text-align:right;font-weight:600;font-size:13px;color:#2C3E50;width:55%;padding:2px 4px;">
+            <option value="">Selecione</option>
+            <option value="Programadas">Programadas</option>
+            <option value="Diários">Diários</option>
+            <option value="Marketing">Marketing</option>
+            <option value="Shop Avulso">Shop Avulso</option>
+            <option value="Geral">Geral</option>
+          </select>
         </div>
         <div class="ocr-field">
           <span class="field-label">Código</span>
@@ -550,8 +557,14 @@ function parseOcrText(text) {
   let codigo = "";
   let pedidos = "";
 
-  const tipoMatch = text.match(/Tipo:?\s*([A-ZÀ-Ú]+)/i);
-  if (tipoMatch) tipo = tipoMatch[1].toUpperCase().trim();
+  const tiposConhecidos = ["Programadas", "Diários", "Diarios", "Marketing", "Shop Avulso", "Geral"];
+  const lowerText = text.toLowerCase();
+  for (const t of tiposConhecidos) {
+    if (lowerText.includes(t.toLowerCase())) {
+      tipo = (t === "Diarios") ? "Diários" : t;
+      break;
+    }
+  }
 
   const codMatch = text.match(/C[oó]d:?\s*([0-9A-Za-z\-]+)/i);
   if (codMatch) codigo = codMatch[1].trim();
@@ -568,9 +581,13 @@ function parseOcrText(text) {
   state.pedidos = pedidos;
 }
 
-['ocrTipo','ocrCodigo','ocrPedidos'].forEach(id => {
+document.getElementById('ocrTipo').addEventListener('change', (e) => {
+  state.tipo = e.target.value;
+});
+
+['ocrCodigo','ocrPedidos'].forEach(id => {
   document.getElementById(id).addEventListener('input', (e) => {
-    const map = { ocrTipo: 'tipo', ocrCodigo: 'codigo', ocrPedidos: 'pedidos' };
+    const map = { ocrCodigo: 'codigo', ocrPedidos: 'pedidos' };
     state[map[id]] = e.target.value;
   });
 });
@@ -675,7 +692,7 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
   };
 
   try {
-    if (SCRIPT_URL && SCRIPT_URL.indexOf('COLE_AQUI') === -1) {
+    if (SCRIPT_URL && SCRIPT_URL.indexOf('https://script.google.com/macros/s/AKfycbxg3wTcXftDZ704a7jBqV9KHOgNdTH6aItLPDtfszsC83fiW0vZLeJTBOLrOuEI4ydxpA/exec') === -1) {
       await fetch(SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
