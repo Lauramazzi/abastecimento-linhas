@@ -248,6 +248,91 @@
     color: white;
   }
 
+  .dest-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .dest-pill {
+    border: 1.5px solid var(--gray-border);
+    border-radius: 8px;
+    padding: 11px 6px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-text);
+    cursor: pointer;
+    background: white;
+  }
+  .dest-pill.selected {
+    background: var(--dark2);
+    border-color: var(--dark2);
+    color: white;
+  }
+
+  .pallet-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .pallet-pill {
+    border: 1.5px solid var(--gray-border);
+    border-radius: 8px;
+    padding: 10px 0 6px;
+    text-align: center;
+    cursor: pointer;
+    background: white;
+    position: relative;
+  }
+  .pallet-pill .num {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-text);
+    display: block;
+  }
+  .pallet-pill.selected {
+    background: #8E44AD;
+    border-color: #8E44AD;
+  }
+  .pallet-pill.selected .num { color: white; }
+  .pallet-pill.busy {
+    background: #FDEDEC;
+    border-color: #F5C6C2;
+    cursor: not-allowed;
+  }
+  .pallet-pill.busy .num { color: var(--red); }
+  .pallet-pill .sub-info {
+    display: block;
+    font-size: 9px;
+    color: var(--red);
+    line-height: 1.3;
+    margin-top: 2px;
+    font-weight: 500;
+  }
+  .pallet-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--gray-text);
+    padding: 14px 0;
+  }
+  .pallet-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--gray-text);
+  }
+  .pallet-legend span { display: flex; align-items: center; gap: 5px; }
+  .legend-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .legend-dot.free { background: var(--green); }
+  .legend-dot.busy { background: var(--red); }
+
   .op-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -410,9 +495,17 @@
 
     <!-- STEP 2: LINE + OPERATOR -->
     <div class="card">
-      <div class="card-label"><span class="step-num">2</span> Linha e operador</div>
+      <div class="card-label"><span class="step-num">2</span> Destino e operador</div>
 
       <div class="form-group">
+        <label>O que foi abastecido</label>
+        <div class="dest-toggle" id="destToggle">
+          <div class="dest-pill selected" data-dest="linha">Linha de montagem</div>
+          <div class="dest-pill" data-dest="pallet">Pallet reserva</div>
+        </div>
+      </div>
+
+      <div class="form-group" id="lineGroup">
         <label>Linha de montagem</label>
         <div class="line-grid" id="lineGrid">
           <div class="line-pill" data-line="A">A</div>
@@ -420,6 +513,19 @@
           <div class="line-pill" data-line="C">C</div>
           <div class="line-pill" data-line="D">D</div>
           <div class="line-pill" data-line="E">E</div>
+        </div>
+      </div>
+
+      <div class="form-group hidden" id="palletGroup">
+        <label>Número do pallet reserva</label>
+        <div class="pallet-loading" id="palletLoading">
+          <div class="spinner"></div>
+          <span>Verificando status dos pallets...</span>
+        </div>
+        <div class="pallet-grid" id="palletGrid"></div>
+        <div class="pallet-legend">
+          <span><i class="legend-dot free"></i> Livre</span>
+          <span><i class="legend-dot busy"></i> Ocupado</span>
         </div>
       </div>
 
@@ -479,14 +585,15 @@
 // ============================================================
 // CONFIG — cole aqui a URL do seu Google Apps Script Web App
 // ============================================================
-const SCRIPT_URL = "COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxg3wTcXftDZ704a7jBqV9KHOgNdTH6aItLPDtfszsC83fiW0vZLeJTBOLrOuEI4ydxpA/exec";
 
 // ============================================================
 // STATE
 // ============================================================
 const state = {
   tipo: "", codigo: "", pedidos: "",
-  linha: null, operador: null, operadorOutro: "",
+  destino: "linha", linha: null, pallet: null,
+  operador: null, operadorOutro: "",
   inicio: null, fim: null,
   photoTaken: false
 };
@@ -592,6 +699,34 @@ document.getElementById('ocrTipo').addEventListener('change', (e) => {
   });
 });
 
+// Destination toggle (Linha vs Pallet reserva)
+const lineGroup = document.getElementById('lineGroup');
+const palletGroup = document.getElementById('palletGroup');
+let palletStatusData = null;
+let palletStatusFetched = false;
+
+document.querySelectorAll('.dest-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.dest-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    state.destino = pill.dataset.dest;
+    if (state.destino === 'linha') {
+      lineGroup.classList.remove('hidden');
+      palletGroup.classList.add('hidden');
+      state.pallet = null;
+    } else {
+      lineGroup.classList.add('hidden');
+      palletGroup.classList.remove('hidden');
+      state.linha = null;
+      document.querySelectorAll('.line-pill').forEach(p => p.classList.remove('selected'));
+      if (!palletStatusFetched) {
+        fetchPalletStatus();
+      }
+    }
+    checkFormComplete();
+  });
+});
+
 // Line selection
 document.querySelectorAll('.line-pill').forEach(pill => {
   pill.addEventListener('click', () => {
@@ -601,6 +736,81 @@ document.querySelectorAll('.line-pill').forEach(pill => {
     checkFormComplete();
   });
 });
+
+function timeAgo(isoString) {
+  if (!isoString) return '';
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'agora';
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.round(mins / 60);
+  return `há ${hours}h`;
+}
+
+async function fetchPalletStatus() {
+  const palletLoading = document.getElementById('palletLoading');
+  const palletGrid = document.getElementById('palletGrid');
+  palletLoading.classList.remove('hidden');
+  palletGrid.innerHTML = '';
+
+  try {
+    if (SCRIPT_URL && SCRIPT_URL.indexOf('COLE_AQUI') === -1) {
+      const res = await fetch(SCRIPT_URL + '?action=status', { method: 'GET' });
+      const json = await res.json();
+      palletStatusData = json.pallets || [];
+    } else {
+      palletStatusData = [];
+    }
+  } catch (err) {
+    palletStatusData = [];
+    showToast('Não foi possível verificar o status. Mostrando todos como livres.', 'error');
+  }
+
+  palletStatusFetched = true;
+  renderPalletGrid();
+  palletLoading.classList.add('hidden');
+}
+
+function renderPalletGrid() {
+  const palletGrid = document.getElementById('palletGrid');
+  palletGrid.innerHTML = '';
+
+  for (let n = 1; n <= 10; n++) {
+    const info = (palletStatusData || []).find(p => String(p.numero) === String(n));
+    const isBusy = info && info.status === 'Ocupado';
+
+    const pill = document.createElement('div');
+    pill.className = 'pallet-pill' + (isBusy ? ' busy' : '');
+    pill.dataset.pallet = n;
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'num';
+    numSpan.textContent = n;
+    pill.appendChild(numSpan);
+
+    if (isBusy) {
+      const sub = document.createElement('span');
+      sub.className = 'sub-info';
+      sub.textContent = `${info.operador || '?'} · ${timeAgo(info.dataHora)}`;
+      pill.appendChild(sub);
+    }
+
+    if (!isBusy) {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.pallet-pill').forEach(p => p.classList.remove('selected'));
+        pill.classList.add('selected');
+        state.pallet = String(n);
+        checkFormComplete();
+      });
+    } else {
+      pill.addEventListener('click', () => {
+        showToast(`Pallet ${n} já está ocupado por ${info.operador || 'outro operador'}`, 'error');
+      });
+    }
+
+    palletGrid.appendChild(pill);
+  }
+}
 
 // Operator selection
 const opOtherInput = document.getElementById('opOtherInput');
@@ -666,7 +876,8 @@ function updateDuration() {
 
 function checkFormComplete() {
   const opOk = state.operador && (state.operador !== 'Outro' || state.operadorOutro.trim().length > 0);
-  const complete = state.photoTaken && state.linha && opOk && state.inicio && state.fim;
+  const destOk = state.destino === 'linha' ? !!state.linha : !!state.pallet;
+  const complete = state.photoTaken && destOk && opOk && state.inicio && state.fim;
   document.getElementById('btnSubmit').disabled = !complete;
 }
 
@@ -684,7 +895,9 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
     tipo: state.tipo,
     codigo: state.codigo,
     pedidos: state.pedidos,
-    linha: state.linha,
+    destinoTipo: state.destino === 'linha' ? 'Linha' : 'Pallet Reserva',
+    linha: state.destino === 'linha' ? state.linha : '',
+    pallet: state.destino === 'pallet' ? state.pallet : '',
     operador: operadorFinal,
     inicio: state.inicio.toISOString(),
     fim: state.fim.toISOString(),
@@ -692,7 +905,7 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
   };
 
   try {
-    if (SCRIPT_URL && SCRIPT_URL.indexOf('https://script.google.com/macros/s/AKfycbxg3wTcXftDZ704a7jBqV9KHOgNdTH6aItLPDtfszsC83fiW0vZLeJTBOLrOuEI4ydxpA/exec') === -1) {
+    if (SCRIPT_URL && SCRIPT_URL.indexOf('COLE_AQUI') === -1) {
       await fetch(SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -711,8 +924,9 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
 function showSuccess(payload) {
   document.getElementById('formScreen').classList.add('hidden');
   document.getElementById('successScreen').classList.remove('hidden');
+  const destLabel = payload.destinoTipo === 'Linha' ? `Linha ${payload.linha}` : `Pallet reserva ${payload.pallet}`;
   document.getElementById('successDetail').textContent =
-    `Linha ${payload.linha} · ${payload.operador} · ${payload.duracaoMin} min`;
+    `${destLabel} · ${payload.operador} · ${payload.duracaoMin} min`;
 }
 
 document.getElementById('btnNewRecord').addEventListener('click', () => {
