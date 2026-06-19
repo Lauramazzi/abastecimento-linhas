@@ -926,10 +926,16 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
     if (SCRIPT_URL && SCRIPT_URL.indexOf('COLE_AQUI') === -1) {
       const res = await fetch(SCRIPT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
+      const responseText = await res.text();
+      let json;
+      try {
+        json = JSON.parse(responseText);
+      } catch (parseErr) {
+        throw new Error('Resposta inesperada do servidor. Verifique se a implantação do Apps Script está ativa e configurada como "Qualquer pessoa".');
+      }
       if (json.status !== 'ok') {
         throw new Error(json.message || 'Erro desconhecido ao salvar');
       }
@@ -963,3 +969,4 @@ function showToast(msg, type) {
 </script>
 </body>
 </html>
+
