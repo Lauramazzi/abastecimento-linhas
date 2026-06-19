@@ -852,6 +852,11 @@ const btnEnd = document.getElementById('btnEnd');
 const durationBanner = document.getElementById('durationBanner');
 const durationValue = document.getElementById('durationValue');
 
+function formatDateTime(d) {
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 function formatTime(d) {
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
@@ -912,8 +917,8 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
     linha: state.destino === 'linha' ? state.linha : '',
     pallet: state.destino === 'pallet' ? state.pallet : '',
     operador: operadorFinal,
-    inicio: state.inicio.toISOString(),
-    fim: state.fim.toISOString(),
+    inicio: formatDateTime(state.inicio),
+    fim: formatDateTime(state.fim),
     duracaoMin: durMin
   };
 
