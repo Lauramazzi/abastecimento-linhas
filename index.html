@@ -188,7 +188,65 @@
 
 <div class="container">
 
-  <div id="formScreen">
+  <!-- SCREEN: MODE SELECT -->
+  <div id="modeScreen">
+    <div class="card">
+      <div class="card-label">O que você quer fazer</div>
+      <button class="btn-primary" id="btnModeAbastecer" style="margin-bottom:10px;">Abastecer linha ou pallet</button>
+      <button class="btn-secondary" id="btnModeTransferir">Transferir pallet para linha</button>
+    </div>
+  </div>
+
+  <!-- SCREEN: TRANSFERIR -->
+  <div id="transferScreen" class="hidden">
+    <div class="card">
+      <div class="card-label"><span class="step-num">1</span> Pallet abastecido (reservado)</div>
+      <div class="status-loading hidden" id="transferPalletLoading">
+        <div class="spinner"></div><span>Buscando pallets abastecidos...</span>
+      </div>
+      <div class="pallet-grid" id="transferPalletGrid"></div>
+      <p id="transferNoPallets" class="hidden" style="font-size:13px;color:var(--gray-text);text-align:center;padding:14px 0;">Nenhum pallet abastecido disponível para transferência no momento.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-label"><span class="step-num">2</span> Linha de destino</div>
+      <div class="line-grid" id="transferLineGrid">
+        <div class="line-pill" data-line="A">A</div>
+        <div class="line-pill" data-line="B">B</div>
+        <div class="line-pill" data-line="C">C</div>
+        <div class="line-pill" data-line="D">D</div>
+        <div class="line-pill" data-line="E">E</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label"><span class="step-num">3</span> Quem está transferindo</div>
+      <div class="op-grid" id="transferOpGrid">
+        <div class="op-pill" data-op="Julio">Julio</div>
+        <div class="op-pill" data-op="Alan">Alan</div>
+        <div class="op-pill" data-op="Outro">Outro</div>
+      </div>
+      <input type="text" class="text-input hidden" id="transferOpOtherInput" placeholder="Digite o nome">
+    </div>
+
+    <button class="btn-success" id="btnConfirmTransfer" disabled>Confirmar transferência</button>
+    <button class="btn-ghost" id="btnBackFromTransfer" type="button" style="margin-top:6px;">Voltar</button>
+    <div style="height:20px;"></div>
+  </div>
+
+  <!-- SCREEN: TRANSFER SUCCESS -->
+  <div id="transferSuccessScreen" class="hidden">
+    <div class="success-screen">
+      <div class="check-circle">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#27AE60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>Transferência registrada!</h2>
+      <p id="transferSuccessDetail">Pallet 3 → Linha B · Alan</p>
+      <button class="btn-primary" id="btnNewTransfer">Nova ação</button>
+    </div>
+  </div>
+
+  <div id="formScreen" class="hidden">
 
     <!-- STEP 1: DESTINO -->
     <div class="card">
@@ -222,7 +280,7 @@
         <div class="pallet-grid" id="palletGrid"></div>
         <div class="legend">
           <span><i class="legend-dot free"></i> Livre</span>
-          <span><i class="legend-dot busy"></i> Em andamento / Ocupado</span>
+          <span><i class="legend-dot busy"></i> Em andamento / Abastecido (reservado)</span>
         </div>
       </div>
 
@@ -253,6 +311,31 @@
       <button class="btn-outline" id="btnAddLista" type="button">+ Adicionar outra lista</button>
     </div>
 
+    <!-- STEP 3.5: PAUSA -->
+    <div class="card hidden" id="pauseCard">
+      <div class="card-label">Pausa</div>
+      <div id="pauseControls">
+        <div class="form-group">
+          <label>Motivo da pausa</label>
+          <select id="pauseMotivo">
+            <option value="">Selecione</option>
+            <option value="Recebimento de mercadoria">Recebimento de mercadoria</option>
+            <option value="Almoço">Almoço</option>
+            <option value="Falta de item">Falta de item</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+        <button class="btn-secondary" id="btnPause" disabled>Pausar abastecimento</button>
+      </div>
+      <div id="pausedInfo" class="hidden">
+        <div class="in-progress-banner">
+          <div class="spinner"></div>
+          <span id="pausedSinceText">Pausado há 0 min — motivo: —</span>
+        </div>
+        <button class="btn-primary" id="btnResume">Retomar abastecimento</button>
+      </div>
+    </div>
+
     <!-- STEP 4: FIM -->
     <div class="card hidden" id="endCard">
       <div class="card-label"><span class="step-num">4</span> Fim do abastecimento</div>
@@ -267,9 +350,10 @@
         </div>
       </div>
       <div class="duration-banner hidden" id="durationBanner">
-        <span>Duração total</span>
+        <span>Duração total (descontando pausas)</span>
         <span class="dur-value" id="durationValue">—</span>
       </div>
+      <p id="pauseSummary" class="hidden" style="font-size:11px;color:var(--gray-text);margin-top:8px;text-align:center;"></p>
     </div>
 
     <button class="btn-success hidden" id="btnSubmit" disabled>Enviar registro final</button>
@@ -309,7 +393,9 @@ const state = {
   inicio: null,
   fim: null,
   registroId: null,   // identifica esse abastecimento (gerado ao marcar início)
-  listas: []           // [{tipo, codigo, pedidos}]
+  listas: [],          // [{tipo, codigo, pedidos}]
+  pausas: [],          // [{inicio: Date, fim: Date|null, motivo: string}]
+  pausadoAgora: false
 };
 
 let statusLinhas = [];
@@ -408,7 +494,7 @@ function renderLineGrid() {
   grid.innerHTML = '';
   ["A","B","C","D","E"].forEach(ln => {
     const info = statusLinhas.find(l => String(l.linha) === ln);
-    const isBusy = info && info.status === 'Em andamento';
+    const isBusy = info && ['Em andamento', 'Abastecida', 'Pausada'].includes(info.status);
 
     const pill = document.createElement('div');
     pill.className = 'line-pill' + (isBusy ? ' busy' : '');
@@ -417,9 +503,23 @@ function renderLineGrid() {
     if (isBusy) {
       const sub = document.createElement('span');
       sub.className = 'sub-info';
-      sub.textContent = `${info.operador || '?'} · ${timeAgo(info.dataHora)}`;
+      if (info.status === 'Abastecida') {
+        sub.textContent = `Abastecida c/ pallet · ${timeAgo(info.dataHora)}`;
+      } else if (info.status === 'Pausada') {
+        sub.textContent = `Pausada · ${info.operador || '?'} · ${info.motivo || ''}`;
+      } else {
+        sub.textContent = `${info.operador || '?'} · ${timeAgo(info.dataHora)}`;
+      }
       pill.appendChild(sub);
-      pill.addEventListener('click', () => showToast(`Linha ${ln} já está em andamento com ${info.operador || 'outro operador'}`, 'error'));
+      let msg;
+      if (info.status === 'Abastecida') {
+        msg = `Linha ${ln} já foi abastecida com pallet reserva hoje — libera às 8:00 de amanhã`;
+      } else if (info.status === 'Pausada') {
+        msg = `Linha ${ln} está pausada (${info.motivo || 'motivo não informado'}) com ${info.operador || 'outro operador'}`;
+      } else {
+        msg = `Linha ${ln} já está em andamento com ${info.operador || 'outro operador'}`;
+      }
+      pill.addEventListener('click', () => showToast(msg, 'error'));
     } else {
       pill.addEventListener('click', () => {
         document.querySelectorAll('.line-pill').forEach(p => p.classList.remove('selected'));
@@ -437,7 +537,7 @@ function renderPalletGrid() {
   grid.innerHTML = '';
   for (let n = 1; n <= 10; n++) {
     const info = statusPallets.find(p => String(p.numero) === String(n));
-    const isBusy = info && (info.status === 'Ocupado' || info.status === 'Em andamento');
+    const isBusy = info && ['Ocupado', 'Em andamento', 'Abastecido', 'Pausada'].includes(info.status);
 
     const pill = document.createElement('div');
     pill.className = 'pallet-pill' + (isBusy ? ' busy' : '');
@@ -450,9 +550,19 @@ function renderPalletGrid() {
     if (isBusy) {
       const sub = document.createElement('span');
       sub.className = 'sub-info';
-      sub.textContent = `${info.operador || '?'} · ${timeAgo(info.dataHora)}`;
+      sub.textContent = info.status === 'Pausada'
+        ? `Pausada · ${info.operador || '?'} · ${info.motivo || ''}`
+        : `${info.operador || '?'} · ${timeAgo(info.dataHora)}`;
       pill.appendChild(sub);
-      pill.addEventListener('click', () => showToast(`Pallet ${n} já está ${info.status.toLowerCase()} com ${info.operador || 'outro operador'}`, 'error'));
+      let msg;
+      if (info.status === 'Abastecido') {
+        msg = `Pallet ${n} já está abastecido (reservado) — só fica livre quando for destinado a uma linha`;
+      } else if (info.status === 'Pausada') {
+        msg = `Pallet ${n} está pausado (${info.motivo || 'motivo não informado'}) com ${info.operador || 'outro operador'}`;
+      } else {
+        msg = `Pallet ${n} já está em andamento com ${info.operador || 'outro operador'}`;
+      }
+      pill.addEventListener('click', () => showToast(msg, 'error'));
     } else {
       pill.addEventListener('click', () => {
         document.querySelectorAll('.pallet-pill').forEach(p => p.classList.remove('selected'));
@@ -465,8 +575,7 @@ function renderPalletGrid() {
   }
 }
 
-// Carrega status de linhas por padrão (já que linha é a opção inicial)
-fetchStatus('linha');
+// (status de linhas é carregado quando o modo "Abastecer" é selecionado)
 
 // ============================================================
 // OPERADOR
@@ -545,6 +654,7 @@ document.getElementById('btnMarkStart').addEventListener('click', async () => {
     document.getElementById('opGrid').style.opacity = '0.6';
 
     document.getElementById('listasCard').classList.remove('hidden');
+    document.getElementById('pauseCard').classList.remove('hidden');
     document.getElementById('endCard').classList.remove('hidden');
     document.getElementById('btnSubmit').classList.remove('hidden');
     addLista();
@@ -632,9 +742,115 @@ function removeLista(id) {
 document.getElementById('btnAddLista').addEventListener('click', addLista);
 
 // ============================================================
+// PAUSA / RETOMADA
+// ============================================================
+const pauseMotivoSelect = document.getElementById('pauseMotivo');
+const btnPause = document.getElementById('btnPause');
+const btnResume = document.getElementById('btnResume');
+const pauseControls = document.getElementById('pauseControls');
+const pausedInfo = document.getElementById('pausedInfo');
+const pausedSinceText = document.getElementById('pausedSinceText');
+let pauseTickInterval = null;
+
+pauseMotivoSelect.addEventListener('change', () => {
+  btnPause.disabled = !pauseMotivoSelect.value;
+});
+
+function totalPausadoMs(referencia) {
+  const ref = referencia || new Date();
+  return state.pausas.reduce((total, p) => {
+    const fimPausa = p.fim || ref;
+    return total + (fimPausa - p.inicio);
+  }, 0);
+}
+
+btnPause.addEventListener('click', async () => {
+  const motivo = pauseMotivoSelect.value;
+  if (!motivo) return;
+
+  btnPause.disabled = true;
+  btnPause.textContent = "Pausando...";
+
+  const pausaInicio = new Date();
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        acao: 'pausar',
+        registroId: state.registroId,
+        destinoTipo: state.destino === 'linha' ? 'Linha' : 'Pallet Reserva',
+        linha: state.destino === 'linha' ? state.linha : '',
+        pallet: state.destino === 'pallet' ? state.pallet : '',
+        operador: state.operador === 'Outro' ? state.operadorOutro.trim() : state.operador,
+        motivo: motivo,
+        dataHora: formatDateTime(pausaInicio)
+      })
+    });
+  } catch (err) { /* não bloqueia o fluxo local mesmo se a notificação falhar */ }
+
+  state.pausas.push({ inicio: pausaInicio, fim: null, motivo });
+  state.pausadoAgora = true;
+
+  pauseControls.classList.add('hidden');
+  pausedInfo.classList.remove('hidden');
+  document.getElementById('btnEnd').style.pointerEvents = 'none';
+  document.getElementById('btnEnd').style.opacity = '0.4';
+
+  updatePausedDisplay();
+  pauseTickInterval = setInterval(updatePausedDisplay, 30000);
+});
+
+function updatePausedDisplay() {
+  const pausaAtual = state.pausas[state.pausas.length - 1];
+  if (!pausaAtual) return;
+  const mins = Math.round((Date.now() - pausaAtual.inicio.getTime()) / 60000);
+  pausedSinceText.textContent = `Pausado há ${mins} min — motivo: ${pausaAtual.motivo}`;
+}
+
+btnResume.addEventListener('click', async () => {
+  btnResume.disabled = true;
+  btnResume.textContent = "Retomando...";
+
+  const pausaAtual = state.pausas[state.pausas.length - 1];
+  pausaAtual.fim = new Date();
+  state.pausadoAgora = false;
+  if (pauseTickInterval) { clearInterval(pauseTickInterval); pauseTickInterval = null; }
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        acao: 'retomar',
+        registroId: state.registroId,
+        destinoTipo: state.destino === 'linha' ? 'Linha' : 'Pallet Reserva',
+        linha: state.destino === 'linha' ? state.linha : '',
+        pallet: state.destino === 'pallet' ? state.pallet : '',
+        operador: state.operador === 'Outro' ? state.operadorOutro.trim() : state.operador
+      })
+    });
+  } catch (err) { /* não bloqueia o fluxo local */ }
+
+  pausedInfo.classList.add('hidden');
+  pauseControls.classList.remove('hidden');
+  pauseMotivoSelect.value = '';
+  btnPause.disabled = true;
+  btnPause.textContent = "Pausar abastecimento";
+  btnResume.disabled = false;
+  btnResume.textContent = "Retomar abastecimento";
+  document.getElementById('btnEnd').style.pointerEvents = 'auto';
+  document.getElementById('btnEnd').style.opacity = '1';
+});
+
+// ============================================================
 // STEP 4: FIM
 // ============================================================
 document.getElementById('btnEnd').addEventListener('click', () => {
+  if (state.pausadoAgora) {
+    showToast('Retome o abastecimento antes de marcar o fim.', 'error');
+    return;
+  }
   state.fim = new Date();
   const btnEnd = document.getElementById('btnEnd');
   btnEnd.textContent = formatTime(state.fim);
@@ -642,9 +858,17 @@ document.getElementById('btnEnd').addEventListener('click', () => {
   btnEnd.classList.add('set');
 
   const diffMs = state.fim - state.inicio;
-  const mins = Math.max(0, Math.round(diffMs / 60000));
+  const pausadoMs = totalPausadoMs(state.fim);
+  const mins = Math.max(0, Math.round((diffMs - pausadoMs) / 60000));
   document.getElementById('durationValue').textContent = mins + ' min';
   document.getElementById('durationBanner').classList.remove('hidden');
+
+  if (state.pausas.length > 0) {
+    const pausaMins = Math.round(pausadoMs / 60000);
+    const pauseSummary = document.getElementById('pauseSummary');
+    pauseSummary.textContent = `${state.pausas.length} pausa(s) totalizando ${pausaMins} min — já descontado(s) do tempo final`;
+    pauseSummary.classList.remove('hidden');
+  }
 
   checkSubmitReady();
 });
@@ -654,7 +878,7 @@ document.getElementById('btnEnd').addEventListener('click', () => {
 // ============================================================
 function checkSubmitReady() {
   const listasOk = state.listas.length > 0 && state.listas.every(l => l.tipo && l.codigo && l.pedidos);
-  const complete = state.inicio && state.fim && listasOk;
+  const complete = state.inicio && state.fim && listasOk && !state.pausadoAgora;
   document.getElementById('btnSubmit').disabled = !complete;
 }
 
@@ -665,7 +889,9 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
 
   const operadorFinal = state.operador === 'Outro' ? state.operadorOutro.trim() : state.operador;
   const diffMs = state.fim - state.inicio;
-  const durMin = Math.max(0, Math.round(diffMs / 60000));
+  const pausadoMs = totalPausadoMs(state.fim);
+  const durMin = Math.max(0, Math.round((diffMs - pausadoMs) / 60000));
+  const pausaTotalMin = Math.round(pausadoMs / 60000);
 
   const payload = {
     acao: 'finalizar',
@@ -677,6 +903,8 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
     inicio: formatDateTime(state.inicio),
     fim: formatDateTime(state.fim),
     duracaoMin: durMin,
+    pausaTotalMin: pausaTotalMin,
+    numPausas: state.pausas.length,
     listas: state.listas.map(l => ({ tipo: l.tipo, codigo: l.codigo, pedidos: l.pedidos }))
   };
 
@@ -707,6 +935,161 @@ function showSuccess(payload, durMin) {
 
 document.getElementById('btnNewRecord').addEventListener('click', () => {
   window.location.reload();
+});
+
+// ============================================================
+// NAVEGAÇÃO ENTRE MODOS (Abastecer vs Transferir)
+// ============================================================
+document.getElementById('btnModeAbastecer').addEventListener('click', () => {
+  document.getElementById('modeScreen').classList.add('hidden');
+  document.getElementById('formScreen').classList.remove('hidden');
+  fetchStatus('linha');
+});
+
+document.getElementById('btnModeTransferir').addEventListener('click', () => {
+  document.getElementById('modeScreen').classList.add('hidden');
+  document.getElementById('transferScreen').classList.remove('hidden');
+  fetchTransferPallets();
+});
+
+document.getElementById('btnBackFromTransfer').addEventListener('click', () => {
+  window.location.reload();
+});
+
+document.getElementById('btnNewTransfer').addEventListener('click', () => {
+  window.location.reload();
+});
+
+// ============================================================
+// FLUXO: TRANSFERIR PALLET PARA LINHA
+// ============================================================
+const transferState = { pallet: null, linha: null, operador: null, operadorOutro: "" };
+let pallotsAbastecidos = [];
+
+async function fetchTransferPallets() {
+  const loadingEl = document.getElementById('transferPalletLoading');
+  loadingEl.classList.remove('hidden');
+  try {
+    const res = await fetch(SCRIPT_URL + '?action=status', { method: 'GET' });
+    const json = await res.json();
+    const todosPallets = json.pallets || [];
+    pallotsAbastecidos = todosPallets.filter(p => p.status === 'Abastecido');
+  } catch (err) {
+    showToast('Não foi possível buscar os pallets abastecidos.', 'error');
+    pallotsAbastecidos = [];
+  }
+  loadingEl.classList.add('hidden');
+  renderTransferPalletGrid();
+}
+
+function renderTransferPalletGrid() {
+  const grid = document.getElementById('transferPalletGrid');
+  const noPalletsMsg = document.getElementById('transferNoPallets');
+  grid.innerHTML = '';
+
+  if (pallotsAbastecidos.length === 0) {
+    noPalletsMsg.classList.remove('hidden');
+    grid.classList.add('hidden');
+    return;
+  }
+  noPalletsMsg.classList.add('hidden');
+  grid.classList.remove('hidden');
+
+  pallotsAbastecidos.forEach(info => {
+    const n = info.numero;
+    const pill = document.createElement('div');
+    pill.className = 'pallet-pill';
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'num';
+    numSpan.textContent = n;
+    pill.appendChild(numSpan);
+
+    const sub = document.createElement('span');
+    sub.className = 'sub-info';
+    sub.style.color = 'var(--gray-text)';
+    sub.textContent = `${info.operador || '?'} · ${timeAgo(info.dataHora)}`;
+    pill.appendChild(sub);
+
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('#transferPalletGrid .pallet-pill').forEach(p => p.classList.remove('selected'));
+      pill.classList.add('selected');
+      transferState.pallet = String(n);
+      checkTransferReady();
+    });
+
+    grid.appendChild(pill);
+  });
+}
+
+document.querySelectorAll('#transferLineGrid .line-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('#transferLineGrid .line-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    transferState.linha = pill.dataset.line;
+    checkTransferReady();
+  });
+});
+
+const transferOpOtherInput = document.getElementById('transferOpOtherInput');
+document.querySelectorAll('#transferOpGrid .op-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('#transferOpGrid .op-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+    transferState.operador = pill.dataset.op;
+    if (pill.dataset.op === 'Outro') {
+      transferOpOtherInput.classList.remove('hidden');
+      transferOpOtherInput.focus();
+    } else {
+      transferOpOtherInput.classList.add('hidden');
+    }
+    checkTransferReady();
+  });
+});
+transferOpOtherInput.addEventListener('input', (e) => {
+  transferState.operadorOutro = e.target.value;
+  checkTransferReady();
+});
+
+function checkTransferReady() {
+  const opOk = transferState.operador && (transferState.operador !== 'Outro' || transferState.operadorOutro.trim().length > 0);
+  const complete = transferState.pallet && transferState.linha && opOk;
+  document.getElementById('btnConfirmTransfer').disabled = !complete;
+}
+
+document.getElementById('btnConfirmTransfer').addEventListener('click', async () => {
+  const btn = document.getElementById('btnConfirmTransfer');
+  btn.disabled = true;
+  btn.textContent = "Confirmando...";
+
+  const operadorFinal = transferState.operador === 'Outro' ? transferState.operadorOutro.trim() : transferState.operador;
+  const payload = {
+    acao: 'transferir',
+    pallet: transferState.pallet,
+    linha: transferState.linha,
+    operador: operadorFinal,
+    dataHora: formatDateTime(new Date())
+  };
+
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    const json = JSON.parse(text);
+    if (json.status !== 'ok') throw new Error(json.message || 'Erro ao confirmar transferência');
+
+    document.getElementById('transferScreen').classList.add('hidden');
+    document.getElementById('transferSuccessScreen').classList.remove('hidden');
+    document.getElementById('transferSuccessDetail').textContent =
+      `Pallet ${transferState.pallet} → Linha ${transferState.linha} · ${operadorFinal}`;
+  } catch (err) {
+    showToast('Erro ao confirmar: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = "Confirmar transferência";
+  }
 });
 </script>
 </body>
