@@ -379,7 +379,7 @@
 // ============================================================
 // CONFIG
 // ============================================================
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQMKLHK5vvlMe8QQoEWPpvFsCKxzAr2UTV9-pdErSdt-WvFe7i7WOKcKClll6du8TV_A";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxg3wTcXftDZ704a7jBqV9KHOgNdTH6aItLPDtfszsC83fiW0vZLeJTBOLrOuEI4ydxpA/exec";
 
 // ============================================================
 // STATE
@@ -433,6 +433,25 @@ function gerarRegistroId() {
   return 'R' + Date.now() + Math.floor(Math.random()*1000);
 }
 
+// Fetch com retry automático — se a primeira tentativa falhar (ex: aba do
+// navegador ficou muito tempo em segundo plano e a conexão "dormiu"),
+// tenta de novo automaticamente antes de mostrar erro ao operador.
+async function fetchComRetry(url, options, tentativas = 2) {
+  let ultimoErro;
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const res = await fetch(url, options);
+      return res;
+    } catch (err) {
+      ultimoErro = err;
+      if (i < tentativas - 1) {
+        await new Promise(r => setTimeout(r, 800)); // espera um pouco antes de tentar de novo
+      }
+    }
+  }
+  throw ultimoErro;
+}
+
 // ============================================================
 // CÓDIGO COM MÁSCARA: 7 dígitos + hífen + resto
 // ============================================================
@@ -476,7 +495,7 @@ async function fetchStatus(tipo) {
   loadingEl.classList.remove('hidden');
 
   try {
-    const res = await fetch(SCRIPT_URL + '?action=status', { method: 'GET' });
+    const res = await fetchComRetry(SCRIPT_URL + '?action=status', { method: 'GET' });
     const json = await res.json();
     statusLinhas = json.linhas || [];
     statusPallets = json.pallets || [];
@@ -629,7 +648,7 @@ document.getElementById('btnMarkStart').addEventListener('click', async () => {
   };
 
   try {
-    const res = await fetch(SCRIPT_URL, {
+    const res = await fetchComRetry(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
@@ -773,7 +792,7 @@ btnPause.addEventListener('click', async () => {
 
   const pausaInicio = new Date();
   try {
-    await fetch(SCRIPT_URL, {
+    await fetchComRetry(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
@@ -818,7 +837,7 @@ btnResume.addEventListener('click', async () => {
   if (pauseTickInterval) { clearInterval(pauseTickInterval); pauseTickInterval = null; }
 
   try {
-    await fetch(SCRIPT_URL, {
+    await fetchComRetry(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
@@ -909,7 +928,7 @@ document.getElementById('btnSubmit').addEventListener('click', async () => {
   };
 
   try {
-    const res = await fetch(SCRIPT_URL, {
+    const res = await fetchComRetry(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
@@ -970,7 +989,7 @@ async function fetchTransferPallets() {
   const loadingEl = document.getElementById('transferPalletLoading');
   loadingEl.classList.remove('hidden');
   try {
-    const res = await fetch(SCRIPT_URL + '?action=status', { method: 'GET' });
+    const res = await fetchComRetry(SCRIPT_URL + '?action=status', { method: 'GET' });
     const json = await res.json();
     const todosPallets = json.pallets || [];
     pallotsAbastecidos = todosPallets.filter(p => p.status === 'Abastecido');
@@ -1072,7 +1091,7 @@ document.getElementById('btnConfirmTransfer').addEventListener('click', async ()
   };
 
   try {
-    const res = await fetch(SCRIPT_URL, {
+    const res = await fetchComRetry(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
