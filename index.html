@@ -176,6 +176,58 @@
   .success-screen p { font-size: 13px; color: var(--gray-text); margin: 0 0 24px; }
 
   .hidden { display: none !important; }
+
+  /* ÁREA DE IMPRESSÃO — invisível na tela normal, só aparece ao imprimir */
+  .print-only { display: none; }
+
+  @media print {
+    body * { visibility: hidden; }
+    .print-only, .print-only * { visibility: visible; }
+    .print-only {
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      padding: 20px;
+      font-family: "Poppins", Arial, sans-serif;
+    }
+    .print-header {
+      font-size: 14px;
+      color: #6B7280;
+      border-bottom: 2px solid #0082A0;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+    .print-destino {
+      font-size: 42px;
+      font-weight: 700;
+      color: #1A252F;
+      margin-bottom: 10px;
+    }
+    .print-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #2C3E50;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 10px;
+    }
+    .print-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .print-table th, .print-table td {
+      border: 1px solid #999;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    .print-table th {
+      background: #1A252F;
+      color: white;
+    }
+  }
 </style>
 </head>
 <body>
@@ -367,8 +419,27 @@
       </div>
       <h2>Registro enviado!</h2>
       <p id="successDetail">Linha A · Julio · 42 min</p>
+      <button class="btn-secondary" id="btnPrintLabel" style="margin-bottom:10px;">🖨️ Imprimir etiqueta</button>
       <button class="btn-primary" id="btnNewRecord">Novo registro</button>
     </div>
+  </div>
+
+  <!-- ÁREA DE IMPRESSÃO — só aparece visualmente quando o navegador imprime -->
+  <div id="printLabelArea" class="print-only">
+    <div class="print-header">
+      <strong>PETIKO — Etiqueta de Abastecimento</strong>
+    </div>
+    <div class="print-destino" id="printDestino">Linha A</div>
+    <div class="print-meta">
+      <span id="printOperador">Operador: —</span>
+      <span id="printDataHora">—</span>
+    </div>
+    <table class="print-table" id="printTable">
+      <thead>
+        <tr><th>Tipo</th><th>Código</th><th>Nº Pedidos</th></tr>
+      </thead>
+      <tbody id="printTableBody"></tbody>
+    </table>
   </div>
 
 </div>
@@ -950,7 +1021,28 @@ function showSuccess(payload, durMin) {
   const destLabel = payload.destinoTipo === 'Linha' ? `Linha ${payload.linha}` : `Pallet reserva ${payload.pallet}`;
   document.getElementById('successDetail').textContent =
     `${destLabel} · ${payload.operador} · ${payload.listas.length} lista(s) · ${durMin} min`;
+
+  prepararEtiquetaImpressao(payload);
 }
+
+function prepararEtiquetaImpressao(payload) {
+  const destLabel = payload.destinoTipo === 'Linha' ? `Linha ${payload.linha}` : `Pallet ${payload.pallet}`;
+  document.getElementById('printDestino').textContent = destLabel;
+  document.getElementById('printOperador').textContent = `Operador: ${payload.operador}`;
+  document.getElementById('printDataHora').textContent = `${payload.fim || formatDateTime(new Date())}`;
+
+  const tbody = document.getElementById('printTableBody');
+  tbody.innerHTML = '';
+  (payload.listas || []).forEach(lista => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${lista.tipo || '—'}</td><td>${lista.codigo || '—'}</td><td>${lista.pedidos || '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('btnPrintLabel').addEventListener('click', () => {
+  window.print();
+});
 
 document.getElementById('btnNewRecord').addEventListener('click', () => {
   window.location.reload();
