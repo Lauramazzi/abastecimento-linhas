@@ -594,7 +594,8 @@ function renderLineGrid() {
       const sub = document.createElement('span');
       sub.className = 'sub-info';
       if (info.status === 'Abastecida') {
-        sub.textContent = `Abastecida c/ pallet · ${timeAgo(info.dataHora)}`;
+        const pedidosLabel = info.motivo ? `${info.motivo} pedidos` : 'qtd. não informada';
+        sub.textContent = `${pedidosLabel} · ${timeAgo(info.dataHora)}`;
       } else if (info.status === 'Pausada') {
         sub.textContent = `Pausada · ${info.operador || '?'} · ${info.motivo || ''}`;
       } else {
@@ -603,7 +604,8 @@ function renderLineGrid() {
       pill.appendChild(sub);
       let msg;
       if (info.status === 'Abastecida') {
-        msg = `Linha ${ln} já foi abastecida com pallet reserva hoje — libera às 8:00 de amanhã`;
+        const pedidosLabel = info.motivo ? `${info.motivo} pedidos` : 'quantidade não informada';
+        msg = `Linha ${ln} já recebeu pallet reserva hoje (${pedidosLabel}) — libera às 8:00 de amanhã`;
       } else if (info.status === 'Pausada') {
         msg = `Linha ${ln} está pausada (${info.motivo || 'motivo não informado'}) com ${info.operador || 'outro operador'}`;
       } else {
