@@ -474,6 +474,47 @@ let statusPallets = [];
 let statusFetchedLinha = false;
 let statusFetchedPallet = false;
 
+// ============================================================
+// PERSISTÊNCIA DE ESTADO (sobrevive a tela desligar, app fechar, etc)
+// ============================================================
+const STORAGE_KEY = 'petiko_abastecimento_em_andamento';
+
+function salvarEstadoLocal() {
+  try {
+    const snapshot = {
+      destino: state.destino,
+      linha: state.linha,
+      pallet: state.pallet,
+      operador: state.operador,
+      operadorOutro: state.operadorOutro,
+      inicio: state.inicio ? state.inicio.toISOString() : null,
+      registroId: state.registroId,
+      listas: state.listas,
+      pausas: state.pausas.map(p => ({
+        inicio: p.inicio.toISOString(),
+        fim: p.fim ? p.fim.toISOString() : null,
+        motivo: p.motivo
+      })),
+      pausadoAgora: state.pausadoAgora
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (e) { /* localStorage pode falhar em modo anônimo — não é crítico */ }
+}
+
+function limparEstadoLocal() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+}
+
+function carregarEstadoLocal() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    if (!snap.inicio || !snap.registroId) return null;
+    return snap;
+  } catch (e) { return null; }
+}
+
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
   toast.textContent = msg;
@@ -751,6 +792,7 @@ document.getElementById('btnMarkStart').addEventListener('click', async () => {
     document.getElementById('btnSubmit').classList.remove('hidden');
     addLista();
     checkSubmitReady();
+    salvarEstadoLocal();
   } catch (err) {
     showToast('Erro ao marcar início: ' + err.message, 'error');
     btn.disabled = false;
@@ -823,12 +865,14 @@ function updateLista(id, field, value) {
   const lista = state.listas.find(l => l.id === id);
   if (lista) lista[field] = value;
   checkSubmitReady();
+  salvarEstadoLocal();
 }
 
 function removeLista(id) {
   state.listas = state.listas.filter(l => l.id !== id);
   document.getElementById(id).remove();
   checkSubmitReady();
+  salvarEstadoLocal();
 }
 
 document.getElementById('btnAddLista').addEventListener('click', addLista);
@@ -891,6 +935,7 @@ btnPause.addEventListener('click', async () => {
 
   updatePausedDisplay();
   pauseTickInterval = setInterval(updatePausedDisplay, 30000);
+  salvarEstadoLocal();
 });
 
 function updatePausedDisplay() {
@@ -933,6 +978,7 @@ btnResume.addEventListener('click', async () => {
   btnResume.textContent = "Retomar abastecimento";
   document.getElementById('btnEnd').style.pointerEvents = 'auto';
   document.getElementById('btnEnd').style.opacity = '1';
+  salvarEstadoLocal();
 });
 
 // ============================================================
@@ -1025,6 +1071,7 @@ function showSuccess(payload, durMin) {
     `${destLabel} · ${payload.operador} · ${payload.listas.length} lista(s) · ${durMin} min`;
 
   prepararEtiquetaImpressao(payload);
+  limparEstadoLocal();
 }
 
 function prepararEtiquetaImpressao(payload) {
@@ -1211,6 +1258,116 @@ document.getElementById('btnConfirmTransfer').addEventListener('click', async ()
     btn.textContent = "Confirmar transferência";
   }
 });
+
+// ============================================================
+// RESTAURAÇÃO AUTOMÁTICA — recupera abastecimento em andamento
+// caso a tela tenha desligado, o navegador tenha fechado, etc.
+// ============================================================
+function restaurarAbastecimentoEmAndamento() {
+  const snap = carregarEstadoLocal();
+  if (!snap) return;
+
+  // Restaura o estado em memória
+  state.destino = snap.destino;
+  state.linha = snap.linha;
+  state.pallet = snap.pallet;
+  state.operador = snap.operador;
+  state.operadorOutro = snap.operadorOutro;
+  state.inicio = new Date(snap.inicio);
+  state.registroId = snap.registroId;
+  state.listas = snap.listas || [];
+  state.pausas = (snap.pausas || []).map(p => ({
+    inicio: new Date(p.inicio),
+    fim: p.fim ? new Date(p.fim) : null,
+    motivo: p.motivo
+  }));
+  state.pausadoAgora = snap.pausadoAgora;
+
+  // Pula a tela de seleção de modo, vai direto para o formulário
+  document.getElementById('modeScreen').classList.add('hidden');
+  document.getElementById('formScreen').classList.remove('hidden');
+
+  // Restaura visualmente: destino selecionado
+  document.querySelectorAll('.dest-pill').forEach(p => {
+    p.classList.toggle('selected', p.dataset.dest === state.destino);
+  });
+  if (state.destino === 'linha') {
+    lineGroup.classList.remove('hidden');
+    palletGroup.classList.add('hidden');
+  } else {
+    lineGroup.classList.add('hidden');
+    palletGroup.classList.remove('hidden');
+  }
+
+  // Restaura operador selecionado
+  document.querySelectorAll('.op-pill').forEach(p => {
+    p.classList.toggle('selected', p.dataset.op === state.operador);
+  });
+  if (state.operador === 'Outro') {
+    opOtherInput.classList.remove('hidden');
+    opOtherInput.value = state.operadorOutro;
+  }
+
+  // Trava a seleção de destino/operador (já que o abastecimento já começou)
+  document.getElementById('destToggle').style.pointerEvents = 'none';
+  document.getElementById('destToggle').style.opacity = '0.6';
+  lineGroup.style.pointerEvents = 'none';
+  lineGroup.style.opacity = '0.6';
+  palletGroup.style.pointerEvents = 'none';
+  palletGroup.style.opacity = '0.6';
+  document.getElementById('opGrid').style.pointerEvents = 'none';
+  document.getElementById('opGrid').style.opacity = '0.6';
+
+  // Mostra o início já marcado
+  document.getElementById('btnMarkStart').classList.add('hidden');
+  document.getElementById('startTimeDisplay').textContent = formatTime(state.inicio);
+  document.getElementById('startedInfo').classList.remove('hidden');
+  document.getElementById('btnStartDisplay').textContent = formatTime(state.inicio);
+
+  // Mostra os cards seguintes
+  document.getElementById('listasCard').classList.remove('hidden');
+  document.getElementById('pauseCard').classList.remove('hidden');
+  document.getElementById('endCard').classList.remove('hidden');
+  document.getElementById('btnSubmit').classList.remove('hidden');
+
+  // Restaura as listas já preenchidas
+  const listasRestauradas = state.listas;
+  state.listas = []; // addLista() vai recriar e popular de novo
+  document.getElementById('listasContainer').innerHTML = '';
+  listaCounter = 0;
+  listasRestauradas.forEach(lr => {
+    addLista();
+    const novaLista = state.listas[state.listas.length - 1];
+    novaLista.tipo = lr.tipo;
+    novaLista.codigo = lr.codigo;
+    novaLista.pedidos = lr.pedidos;
+    const bloco = document.getElementById(novaLista.id);
+    if (bloco) {
+      const selTipo = bloco.querySelector('[data-field="tipo"]');
+      const inpCodigo = bloco.querySelector('[data-field="codigo"]');
+      const inpPedidos = bloco.querySelector('[data-field="pedidos"]');
+      if (selTipo) selTipo.value = lr.tipo || '';
+      if (inpCodigo) inpCodigo.value = lr.codigo || '';
+      if (inpPedidos) inpPedidos.value = lr.pedidos || '';
+    }
+  });
+
+  // Restaura estado de pausa, se estava pausado
+  if (state.pausadoAgora) {
+    pauseControls.classList.add('hidden');
+    pausedInfo.classList.remove('hidden');
+    document.getElementById('btnEnd').style.pointerEvents = 'none';
+    document.getElementById('btnEnd').style.opacity = '0.4';
+    updatePausedDisplay();
+    pauseTickInterval = setInterval(updatePausedDisplay, 30000);
+  }
+
+  checkSubmitReady();
+  showToast('Abastecimento em andamento recuperado automaticamente.', 'success');
+}
+
+// Roda a restauração assim que a página carrega
+restaurarAbastecimentoEmAndamento();
 </script>
 </body>
 </html>
