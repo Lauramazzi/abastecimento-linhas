@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Abastecimento — Petiko</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue: #0082A0;
+    --blue-dark: #00566B;
+    --green: #27AE60;
+    --yellow: #F39C12;
+    --red: #E74C3C;
+    --purple: #8E44AD;
+    --gray: #F4F8FA;
+    --dark: #1A252F;
+    --text: #2C3E50;
+    --border: #D6E7EC;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Poppins", sans-serif;
+    background: #0F1923;
+    color: white;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: #1A252F;
+    border-bottom: 2px solid var(--blue);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  header h1 { font-size: 20px; font-weight: 700; color: white; }
+  header .last-update {
+    font-size: 12px; color: #9AA5B1;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    display: inline-block; margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* MAIN GRID */
+  .main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; }
+
+  /* SECTIONS */
+  .section-title {
+    font-size: 13px; font-weight: 600; color: var(--blue);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* LINE CARDS */
+  .lines-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .line-card {
+    background: #1E2F3C;
+    border-radius: 12px;
+    border: 1.5px solid #2D4A5C;
+    padding: 14px;
+    position: relative;
+    transition: border-color 0.3s;
+  }
+  .line-card.ocupada { border-color: var(--blue); }
+  .line-card.abastecida { border-color: var(--green); }
+  .line-card.pausada { border-color: var(--yellow); }
+
+  .line-label {
+    font-size: 28px; font-weight: 700;
+    color: white; margin-bottom: 6px;
+  }
+  .line-status-badge {
+    display: inline-block; padding: 3px 10px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .badge-livre { background: rgba(39,174,96,0.15); color: var(--green); }
+  .badge-andamento { background: rgba(0,130,160,0.2); color: #5CC8E0; }
+  .badge-abastecida { background: rgba(39,174,96,0.2); color: var(--green); }
+  .badge-pausada { background: rgba(243,156,18,0.2); color: var(--yellow); }
+
+  .line-pedidos {
+    font-size: 22px; font-weight: 700; color: white;
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .line-pedidos span { font-size: 12px; font-weight: 400; color: #9AA5B1; }
+
+  /* OPERATOR AVATAR */
+  .operator-area {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0;
+    position: relative;
+  }
+  .avatar.julio { background: #0082A0; color: white; }
+  .avatar.alan { background: #8E44AD; color: white; }
+  .avatar.guilherme { background: #27AE60; color: white; }
+  .avatar.outro { background: #E67E22; color: white; }
+  .avatar.vazio { background: #2D4A5C; color: #5CC8E0; border: 1.5px dashed #5CC8E0; }
+  .avatar .status-ring {
+    position: absolute; inset: -3px;
+    border-radius: 50%; border: 2px solid transparent;
+  }
+  .avatar.ativo .status-ring { border-color: #5CC8E0; animation: spin 3s linear infinite; }
+  .avatar.pausado .status-ring { border-color: var(--yellow); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .operator-info { font-size: 12px; color: #9AA5B1; line-height: 1.4; }
+  .operator-info strong { color: white; font-size: 13px; }
+
+  /* PALLETS GRID */
+  .pallets-section { }
+  .pallets-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+  }
+  .pallet-card {
+    background: #1E2F3C;
+    border-radius: 10px;
+    border: 1.5px solid #2D4A5C;
+    padding: 10px 8px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .pallet-card.livre { border-color: #2D4A5C; }
+  .pallet-card.abastecido { border-color: var(--green); background: rgba(39,174,96,0.08); }
+  .pallet-card.andamento { border-color: var(--blue); background: rgba(0,130,160,0.1); }
+  .pallet-card.pausado { border-color: var(--yellow); background: rgba(243,156,18,0.08); }
+
+  .pallet-num {
+    font-size: 18px; font-weight: 700; color: white; margin-bottom: 4px;
+  }
+  .pallet-status-text {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .pallet-card.livre .pallet-status-text { color: #5CC8E0; }
+  .pallet-card.abastecido .pallet-status-text { color: var(--green); }
+  .pallet-card.andamento .pallet-status-text { color: #5CC8E0; }
+  .pallet-card.pausado .pallet-status-text { color: var(--yellow); }
+
+  .pallet-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; margin: 0 auto 4px;
+  }
+  .pallet-pedidos {
+    font-size: 11px; color: #9AA5B1;
+  }
+  .pallet-pedidos strong { color: white; }
+
+  /* SUMMARY CARDS */
+  .summary-row {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 10px; margin: 16px 16px 0;
+  }
+  .summary-card {
+    background: #1E2F3C; border-radius: 10px; padding: 14px;
+    border: 1px solid #2D4A5C; text-align: center;
+  }
+  .summary-card .num {
+    font-size: 28px; font-weight: 700; color: white; margin-bottom: 4px;
+  }
+  .summary-card .lbl { font-size: 11px; color: #9AA5B1; }
+  .summary-card.alert .num { color: var(--red); }
+  .summary-card.warn .num { color: var(--yellow); }
+  .summary-card.ok .num { color: var(--green); }
+
+  /* COBERTURA */
+  .cobertura-bar {
+    background: #2D4A5C; border-radius: 4px; height: 8px; margin-top: 6px;
+  }
+  .cobertura-fill {
+    height: 8px; border-radius: 4px;
+    background: var(--green); transition: width 0.5s;
+  }
+  .cobertura-fill.warn { background: var(--yellow); }
+  .cobertura-fill.danger { background: var(--red); }
+
+  /* OPERATOR CARD — time em campo */
+  .op-card {
+    background: #1E2F3C;
+    border-radius: 12px;
+    border: 1.5px solid #2D4A5C;
+    padding: 14px;
+    display: flex; align-items: center; gap: 12px;
+    transition: border-color 0.3s;
+  }
+  .op-card.andamento { border-color: var(--blue); }
+  .op-card.pausado { border-color: var(--yellow); }
+  .op-avatar-big {
+    width: 48px; height: 48px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; flex-shrink: 0; position: relative;
+  }
+  .op-avatar-big .status-ring { position: absolute; inset: -3px; border-radius: 50%; border: 2px solid transparent; }
+  .op-avatar-big.ativo .status-ring { border-color: #5CC8E0; animation: spin 3s linear infinite; }
+  .op-avatar-big.pausado .status-ring { border-color: var(--yellow); }
+  .op-card-info { flex: 1; min-width: 0; }
+  .op-card-nome { font-size: 15px; font-weight: 600; color: white; margin-bottom: 4px; }
+  .op-card-destino { font-size: 12px; color: #9AA5B1; margin-bottom: 2px; }
+  .op-card-tempo { font-size: 12px; color: #5CC8E0; }
+  .op-card-pausa { font-size: 11px; color: var(--yellow); margin-top: 2px; }
+
+  /* LOADING */
+  #loadingOverlay {
+    position: fixed; inset: 0;
+    background: #0F1923;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; z-index: 100;
+  }
+  .load-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(0,130,160,0.2);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+  <div class="load-spinner"></div>
+  <div style="color:#9AA5B1;font-size:14px;">Carregando status em tempo real...</div>
+</div>
+
+<header>
+  <div class="logo">
+    <svg height="28" viewBox="0 0 512 220.7" style="width:auto">
+      <g fill="#0082A0">
+        <path d="M275.5,18.4c-8,0.6-16.3,1.3-24.7,2.4c1.4-4.9,3-9.9,4.7-14.8c0.7-2-0.4-4.2-2.5-4.8l-22.6-1.1c-1.9-0.5-3.9,0.5-4.5,2.5c-1.3,4.4-3.6,12.6-5.9,23.5c-17.6,4-35.1,9.8-51.7,18.8c-1.9,1.1-2.5,3.6-1.2,5.4c3.6,5.2,10.4,13.1,13.7,17.9c1.1,1.6,3.1,2,4.8,1.1c4.6-2.5,14.6-7.2,29-12c-5.2,38-6.5,89,10.7,135.4c0.7,2,3.2,2.8,5.1,1.8l21.4-10.7c1.7-0.8,2.5-2.8,1.8-4.6c-4.8-12.6-21.4-63.1-9.5-129.8c9.6-2,20.1-3.8,31.5-5c1.8-0.2,3.3-1.7,3.3-3.5l0.5-18.7C279.5,20,277.7,18.2,275.5,18.4z"/>
+        <path d="M105.3,73.9c13.1-52-36.9-80.5-74.2-40.4c0.1-4.2,0.3-8.4,0.6-12.8c0.2-2.2-1.6-4.1-3.8-4.1H3.9c-2.1,0-3.8,1.6-3.8,3.7C-0.4,41.5,0.2,150,52.4,216c1.4,1.7,4,1.9,5.6,0.4l18.6-16.6c1.5-1.3,1.7-3.5,0.6-5.1c-4.5-6.2-15.7-22.9-26-48.3C62.5,139.7,94.4,117.3,105.3,73.9z M72.7,77.5c-5.3,21-19.7,32.8-27,37.6c-2.1,1.4-5,0.4-5.7-2.1c-5-17.4-7.2-38.7-8-49.2c-0.4-4.5,1.4-9,5-11.8C56.3,36.3,79.2,51.4,72.7,77.5z"/>
+      </g>
+      <circle fill="#FFCC1B" cx="114.8" cy="198.3" r="10.4"/>
+      <circle fill="#FFCC1B" cx="149.7" cy="210.2" r="10.4"/>
+      <circle fill="#FFCC1B" cx="187.7" cy="198.3" r="10.4"/>
+    </svg>
+    <div>
+      <h1>Painel de Abastecimento</h1>
+      <div style="font-size:12px;color:#9AA5B1;">Petiko — Estoque/Faturamento</div>
+    </div>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:13px;color:white;margin-bottom:4px;">
+      <span class="status-dot"></span>Ao vivo
+    </div>
+    <div class="last-update" id="lastUpdate">Aguardando...</div>
+    <div style="font-size:11px;color:#5CC8E0;margin-top:2px;">Atualiza a cada 30s</div>
+  </div>
+</header>
+
+<!-- SUMMARY ROW -->
+<div class="summary-row" id="summaryRow">
+  <div class="summary-card">
+    <div class="num" id="sumLinhasOcup">–</div>
+    <div class="lbl">Linhas em uso</div>
+  </div>
+  <div class="summary-card">
+    <div class="num" id="sumPalletsAbast">–</div>
+    <div class="lbl">Pallets abastecidos</div>
+  </div>
+  <div class="summary-card">
+    <div class="num" id="sumPalletsLivres">–</div>
+    <div class="lbl">Pallets livres</div>
+  </div>
+  <div class="summary-card">
+    <div class="num" id="sumCobertura">–</div>
+    <div class="lbl">Cobertura de pedidos</div>
+    <div class="cobertura-bar"><div class="cobertura-fill" id="coberturaFill" style="width:0%"></div></div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- LINHAS -->
+  <div>
+    <div class="section-title">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+      Linhas de Montagem (A – D)
+    </div>
+    <div class="lines-grid" id="linesGrid"></div>
+  </div>
+
+  <!-- PALLETS -->
+  <div class="pallets-section">
+    <div class="section-title">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      Pallets Reserva (1 – 14)
+    </div>
+    <div class="pallets-grid" id="palletsGrid"></div>
+  </div>
+
+</div>
+
+<!-- TIME EM CAMPO -->
+<div style="padding: 0 16px 16px;">
+  <div class="section-title" style="margin-bottom:10px;">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    Time em campo — atividades abertas agora
+  </div>
+  <div id="timeGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:10px;"></div>
+  <div id="timeSemAtividade" style="display:none; color:#5CC8E0; font-size:13px; padding:12px 0;">Nenhum operador com atividade aberta no momento.</div>
+</div>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxg3wTcXftDZ704a7jBqV9KHOgNdTH6aItLPDtfszsC83fiW0vZLeJTBOLrOuEI4ydxpA/exec";
+const META_PEDIDOS = 1080; // 270 x 4 linhas (A-D)
+
+const OPERADORES = {
+  "Julio":     { iniciais: "JU", classe: "julio" },
+  "Alan":      { iniciais: "AL", classe: "alan" },
+  "Guilherme": { iniciais: "GU", classe: "guilherme" },
+};
+
+function getOpInfo(nome) {
+  if (!nome) return { iniciais: "–", classe: "vazio" };
+  const op = OPERADORES[nome];
+  if (op) return op;
+  const ini = nome.substring(0,2).toUpperCase();
+  return { iniciais: ini, classe: "outro" };
+}
+
+function statusClasse(status) {
+  if (!status || status === "Livre") return "livre";
+  if (status === "Em andamento") return "andamento";
+  if (status === "Abastecida" || status === "Abastecido") return "abastecido";
+  if (status === "Pausada" || status === "Pausado") return "pausado";
+  return "livre";
+}
+
+function badgeHtml(status) {
+  const map = {
+    "Livre": ["badge-livre","Livre"],
+    "Em andamento": ["badge-andamento","Em andamento"],
+    "Abastecida": ["badge-abastecida","Abastecida"],
+    "Abastecido": ["badge-abastecida","Abastecido"],
+    "Pausada": ["badge-pausada","Pausada"],
+    "Pausado": ["badge-pausada","Pausado"],
+  };
+  const [cls, txt] = map[status] || ["badge-livre","Livre"];
+  return `<span class="line-status-badge ${cls}">${txt}</span>`;
+}
+
+function avatarHtml(nome, statusClasse, size=36, fontSize=13) {
+  const op = getOpInfo(nome);
+  const ringClass = statusClasse === "andamento" ? "ativo" : statusClasse === "pausado" ? "pausado" : "";
+  return `
+    <div class="avatar ${op.classe} ${ringClass}" style="width:${size}px;height:${size}px;font-size:${fontSize}px;">
+      <div class="status-ring"></div>
+      ${op.iniciais}
+    </div>`;
+}
+
+function renderLinhas(linhas) {
+  const linhasParaMostrar = ["A","B","C","D"]; // exclui E conforme regra
+  const grid = document.getElementById("linesGrid");
+  grid.innerHTML = "";
+
+  linhasParaMostrar.forEach(ln => {
+    const info = linhas.find(l => String(l.linha) === ln) || { status: "Livre", operador: "", motivo: "" };
+    const cls = statusClasse(info.status);
+    const pedidos = info.status === "Abastecida" && info.motivo ? info.motivo : "";
+    const op = getOpInfo(info.operador);
+
+    const card = document.createElement("div");
+    card.className = `line-card ${cls}`;
+    card.innerHTML = `
+      <div class="line-label">Linha ${ln}</div>
+      ${badgeHtml(info.status)}
+      ${pedidos ? `<div class="line-pedidos">${pedidos}<span>pedidos</span></div>` : '<div style="font-size:12px;color:#5CC8E0;margin-bottom:4px;">Aguardando abastecimento</div>'}
+      <div class="operator-area">
+        ${avatarHtml(info.operador, cls)}
+        <div class="operator-info">
+          <strong>${info.operador || "Vago"}</strong><br>
+          ${info.status === "Pausada" && info.motivo ? `Pausado: ${info.motivo}` : (info.status === "Livre" ? "Disponível" : info.status)}
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function renderPallets(pallets) {
+  const grid = document.getElementById("palletsGrid");
+  grid.innerHTML = "";
+
+  let palletsLivres = 0;
+  let palletsAbastecidos = 0;
+  let totalPedidosEmPallets = 0;
+
+  for (let n = 1; n <= 14; n++) {
+    const info = pallets.find(p => String(p.numero) === String(n)) || { status: "Livre", operador: "", motivo: "" };
+    const cls = statusClasse(info.status);
+    const pedidos = (info.status === "Abastecido" && info.motivo) ? Number(info.motivo) : 0;
+
+    if (info.status === "Livre") palletsLivres++;
+    if (info.status === "Abastecido") { palletsAbastecidos++; totalPedidosEmPallets += pedidos; }
+
+    const op = getOpInfo(info.operador);
+    const card = document.createElement("div");
+    card.className = `pallet-card ${cls}`;
+    card.innerHTML = `
+      <div class="pallet-num">${n}</div>
+      <div class="pallet-status-text">${info.status || "Livre"}</div>
+      ${avatarHtml(info.operador, cls, 28, 10)}
+      ${pedidos > 0 ? `<div class="pallet-pedidos"><strong>${pedidos}</strong><br>ped.</div>` : `<div class="pallet-pedidos" style="color:#2D4A5C;">–</div>`}`;
+    grid.appendChild(card);
+  }
+
+  // Summary
+  const linhasOcup = document.querySelectorAll(".line-card:not(.livre)").length;
+  document.getElementById("sumLinhasOcup").textContent = linhasOcup;
+  document.getElementById("sumPalletsAbast").textContent = palletsAbastecidos;
+
+  const livresEl = document.getElementById("sumPalletsLivres");
+  livresEl.textContent = palletsLivres;
+  livresEl.closest(".summary-card").className = `summary-card ${palletsLivres === 0 ? "alert" : palletsLivres <= 2 ? "warn" : "ok"}`;
+
+  const pct = Math.min(100, Math.round((totalPedidosEmPallets / META_PEDIDOS) * 100));
+  document.getElementById("sumCobertura").textContent = pct + "%";
+  const fill = document.getElementById("coberturaFill");
+  fill.style.width = pct + "%";
+  fill.className = `cobertura-fill ${pct < 50 ? "danger" : pct < 100 ? "warn" : ""}`;
+}
+
+function timeAgo(dataHoraStr) {
+  if (!dataHoraStr) return '';
+  const d = new Date(dataHoraStr.replace(' ', 'T') + '-03:00');
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return 'agora';
+  if (mins < 60) return `há ${mins} min`;
+  return `há ${Math.round(mins / 60)}h`;
+}
+
+function renderTime(linhas, pallets) {
+  const grid = document.getElementById("timeGrid");
+  const semAtiv = document.getElementById("timeSemAtividade");
+  grid.innerHTML = "";
+
+  // Junta todos com atividade aberta (Em andamento ou Pausada)
+  const ativos = [];
+
+  linhas.forEach(info => {
+    if (info.status === "Em andamento" || info.status === "Pausada") {
+      ativos.push({
+        operador: info.operador || "?",
+        destino: "Linha " + info.linha,
+        status: info.status,
+        dataHora: info.dataHora,
+        motivo: info.motivo || ""
+      });
+    }
+  });
+
+  pallets.forEach(info => {
+    if (info.status === "Em andamento" || info.status === "Pausada") {
+      ativos.push({
+        operador: info.operador || "?",
+        destino: "Pallet " + info.numero,
+        status: info.status,
+        dataHora: info.dataHora,
+        motivo: info.motivo || ""
+      });
+    }
+  });
+
+  if (ativos.length === 0) {
+    grid.style.display = "none";
+    semAtiv.style.display = "block";
+    return;
+  }
+
+  grid.style.display = "grid";
+  semAtiv.style.display = "none";
+
+  ativos.forEach(ativ => {
+    const op = getOpInfo(ativ.operador);
+    const isPausado = ativ.status === "Pausada";
+    const cls = isPausado ? "pausado" : "andamento";
+    const ringCls = isPausado ? "pausado" : "ativo";
+
+    const card = document.createElement("div");
+    card.className = `op-card ${cls}`;
+    card.innerHTML = `
+      <div class="op-avatar-big ${op.classe} ${ringCls}">
+        <div class="status-ring"></div>
+        ${op.iniciais}
+      </div>
+      <div class="op-card-info">
+        <div class="op-card-nome">${ativ.operador}</div>
+        <div class="op-card-destino">${ativ.destino}</div>
+        <div class="op-card-tempo">${isPausado ? "⏸ Pausado" : "▶ Em andamento"} · ${timeAgo(ativ.dataHora)}</div>
+        ${isPausado && ativ.motivo ? `<div class="op-card-pausa">Motivo: ${ativ.motivo}</div>` : ""}
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+async function atualizar() {
+  try {
+    const res = await fetch(SCRIPT_URL + "?action=status&t=" + Date.now());
+    const json = await res.json();
+
+    if (json.status === "ok") {
+      renderLinhas(json.linhas || []);
+      renderPallets(json.pallets || []);
+      renderTime(json.linhas || [], json.pallets || []);
+
+      const agora = new Date();
+      document.getElementById("lastUpdate").textContent =
+        "Atualizado às " + agora.getHours().toString().padStart(2,"0") + ":" + agora.getMinutes().toString().padStart(2,"0") + ":" + agora.getSeconds().toString().padStart(2,"0");
+    }
+  } catch (err) {
+    document.getElementById("lastUpdate").textContent = "Erro ao buscar status";
+  }
+  document.getElementById("loadingOverlay").style.display = "none";
+}
+
+atualizar();
+setInterval(atualizar, 30000);
+</script>
+</body>
+</html>
