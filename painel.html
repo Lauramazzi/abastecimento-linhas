@@ -321,6 +321,19 @@
 
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxg3wTcXftDZ704a7jBqV9KHOgNdTH6aItLPDtfszsC83fiW0vZLeJTBOLrOuEI4ydxpA/exec";
+
+// Chave de acesso: não fica no código. Abra o app uma vez com #k=CHAVE no
+// fim do link e ela fica salva neste aparelho.
+const CHAVE_STORAGE = "abast-chave";
+function lerChave() {
+  const m = location.hash.match(/k=([^&]+)/);
+  if (m) {
+    try { localStorage.setItem(CHAVE_STORAGE, decodeURIComponent(m[1])); } catch (e) {}
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+  try { return localStorage.getItem(CHAVE_STORAGE) || ""; } catch (e) { return ""; }
+}
+const CHAVE = lerChave();
 const META_PEDIDOS = 1080; // 270 x 4 linhas (A-D)
 
 const OPERADORES = {
@@ -516,7 +529,7 @@ function renderTime(linhas, pallets) {
 
 async function atualizar() {
   try {
-    const res = await fetch(SCRIPT_URL + "?action=status&t=" + Date.now());
+    const res = await fetch(SCRIPT_URL + "?key=" + encodeURIComponent(CHAVE) + "&action=status&t=" + Date.now());
     const json = await res.json();
 
     if (json.status === "ok") {
